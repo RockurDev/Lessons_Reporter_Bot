@@ -1,0 +1,6 @@
+.DS_Store
+.env
+.venv
+*.egg-info
+*.pyc
+database.db
