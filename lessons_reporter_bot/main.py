@@ -1,66 +1,27 @@
 import datetime
 import inspect
-from collections import defaultdict
-from contextlib import suppress
-from email import message
 from functools import partial
-from typing import Any, Literal
+from typing import Any
 
 import telebot
-from pydantic import ValidationError
 from sqlmodel import SQLModel, create_engine
-from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, Message
 from telebot.util import quick_markup
 
-from lessons_reporter_bot import bot_service
 from lessons_reporter_bot.authorization_service import AuthorizationService
-from lessons_reporter_bot.bot_service import BotService
-from lessons_reporter_bot.callback_data import (
-    # Topic's callback's
-    AddParentIdToStudentCallbackData,
-    # Student's callback's
-    CreateStudentCallbackData,
-    CreateTopicCallbackData,
-    DeleteConfirmedItemCallbackData,
-    DeleteOneItemCallbackData,
-    # Back to calback's
-    GoBackToAdminPanelCallbackData,
-    ReportBuilder1CallbackData,
-    ReportBuilder1EnterManuallyCallbackData,
-    ReportBuilder1SetValueFromButtonCallbackData,
-    ReportBuilder5SetHomeworkStatusCallbackData,
-    ReportBuilder6SetIsProactiveCallbackData,
-    ReportBuilder7SetIsPaidCallbackData,
-    ReportBuilder8AddCommentQuestionCallbackData,
-    ReportBuilderChooseItemListCallbackData,
-    # Report builder's callback's
-    ReportBuilderShowItemListCallbackData,
-    ReportBuilderShowReportPreviewCallbackData,
-    SaveConfirmedReportCallbackData,
-    SendSavedReportsCallbackData,
-    ShowItemsListCallbackData,
-    ShowOneItemCallbackData,
-    UpdateStudentNameCallbackData,
-    any_callback_data_validator,
-)
 from lessons_reporter_bot.callback_storage import CallbackStorage
 from lessons_reporter_bot.models import (
     BotServiceMessage,
-    BotServiceRegisterNextMessageHandler,
-    FormattedPaginationItem,
     HomeworkStatus,
     Report,
     ReportData,
-    Student,
-    Topic,
 )
 from lessons_reporter_bot.report_builder import ReportBuilder
 from lessons_reporter_bot.report_storage import ReportStorage
 from lessons_reporter_bot.settings import Settings
 from lessons_reporter_bot.student_storage import StudentStorage
 from lessons_reporter_bot.topic_storage import TopicStorage
-from lessons_reporter_bot.utils import FIRST_PAGE, paginate
+from lessons_reporter_bot.utils import paginate
 
 settings = Settings()
 
