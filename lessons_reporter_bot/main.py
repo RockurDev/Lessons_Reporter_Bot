@@ -93,8 +93,6 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
     callback_partial = callbacks.from_callback_data(call.data)
 
     args = inspect.getfullargspec(callback_partial.func).args
-    if 'call' in args:
-        callback_partial.keywords['call'] = call
     if 'chat_id' in args:
         callback_partial.keywords['chat_id'] = call.from_user.id
     if 'message_id' in args:
@@ -105,17 +103,17 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
 
 
 @callbacks.register
-def show_menu(call: CallbackQuery) -> BotServiceMessage:
+def show_menu(chat_id: int, message_id: int) -> BotServiceMessage:
     telegram_bot.edit_message_text(
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        chat_id=chat_id,
+        message_id=message_id,
         text=f'Главное меню:',
         reply_markup=build_menu_buttons(),
     )
 
 
 @callbacks.register
-def show_student_list(current_page: int, call: CallbackQuery) -> None:
+def show_student_list(current_page: int, chat_id: int, message_id: int) -> None:
     students = student_storage.list_students(order_by='name')
     pagination_result = paginate(
         items=students, current_page=current_page, page_size=10
@@ -144,8 +142,8 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
 
     telegram_bot.edit_message_text(
         text='Выберите студента:',
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        chat_id=chat_id,
+        message_id=message_id,
         reply_markup=build_quick_markup(buttons),
     )
 
@@ -269,13 +267,13 @@ def show_one_topic(
 
 
 @callbacks.register
-def create_student(current_page: int, call: CallbackQuery) -> None:
+def create_student(current_page: int, chat_id: int, message_id: int) -> None:
     def process_student_name_input(message: Message) -> list[BotServiceMessage]:
         student_name = ' '.join(
             map(lambda word: word.capitalize(), message.text.strip().split())
         )
         student_id = student_storage.add_student(student_name)
-        new_message = telegram_bot.send_message(call.from_user.id, '...')
+        new_message = telegram_bot.send_message(chat_id, '...')
         show_one_student(
             item_id=student_id,
             current_page=current_page,
@@ -285,12 +283,12 @@ def create_student(current_page: int, call: CallbackQuery) -> None:
 
     telegram_bot.edit_message_text(
         text='Введите ФИО студента:',
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        chat_id=chat_id,
+        message_id=message_id,
         reply_markup=None,
     )
     telegram_bot.register_next_step_handler_by_chat_id(
-        call.from_user.id, process_student_name_input
+        chat_id, process_student_name_input
     )
 
 
@@ -348,7 +346,9 @@ def format_report_text(report: Report | ReportData) -> str:
 
 
 @callbacks.register
-def show_one_report(item_id: int, current_page: int, call: CallbackQuery) -> None:
+def show_one_report(
+    item_id: int, current_page: int, chat_id: int, message_id: int
+) -> None:
     if report := report_storage.get_report_by_id(item_id):
         text = format_report_text(report)
     else:
@@ -356,8 +356,8 @@ def show_one_report(item_id: int, current_page: int, call: CallbackQuery) -> Non
 
     telegram_bot.edit_message_text(
         text=text,
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        chat_id=chat_id,
+        message_id=message_id,
         reply_markup=build_quick_markup(
             {'Назад': {'callback_data': partial(show_report_list, current_page)}}
         ),
