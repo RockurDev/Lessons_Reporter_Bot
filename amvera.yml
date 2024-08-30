@@ -1,11 +1,20 @@
 meta:
-  environment: python
+  environment: docker
   toolchain:
-    name: pip
-    version: 3.12.5
-build:
-  requirementsPath: requirements.txt
-run:
-  persistenceMount: /data
-  containerPort: 80
-  command: python lessons_reporter_bot/main.py
+    name: docker
+
+# meta:
+#   environment: python
+#   toolchain:
+#     name: pip
+#     version: 3.12.5
+# build:
+#   requirementsPath: requirements.txt
+# run:
+#   persistenceMount: /data
+#   containerPort: 80
+#   command: python lessons_reporter_bot/main.py
+# run:
+#   command: /app/server
+#   args: --port 8080
+#   containerPort: 8080
