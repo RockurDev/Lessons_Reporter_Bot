@@ -3,7 +3,7 @@ meta:
   environment: python
   toolchain:
     name: pip
-    version: 3.12
+    version: 3.12.5
 build:
   requirementsPath: requirements.txt
 run:
