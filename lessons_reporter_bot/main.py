@@ -13,6 +13,7 @@ from telebot.apihelper import ApiTelegramException
 from telebot.types import CallbackQuery, InlineKeyboardMarkup, Message
 from telebot.util import quick_markup
 
+from lessons_reporter_bot import bot_service
 from lessons_reporter_bot.authorization_service import AuthorizationService
 from lessons_reporter_bot.bot_service import BotService
 from lessons_reporter_bot.callback_data import (
@@ -102,7 +103,7 @@ def build_menu_buttons() -> InlineKeyboardMarkup:
     return build_quick_markup(
         {
             'Студенты': {'callback_data': partial(show_student_list, 1)},
-            # 'Темы уроков': {'callback_data': ''},
+            'Темы уроков': {'callback_data': partial(show_topic_list, 1)},
             'Отчёты': {'callback_data': partial(show_report_list, 1, 0)},
             'Составить отчёт': {'callback_data': partial(create_new_report)},
         }
@@ -237,6 +238,76 @@ def show_report_list(
 
 
 @callbacks.register
+def show_topic_list(current_page: int, chat_id: int, message_id: int) -> None:
+    topics = topic_storage.list_topics(order_by='topic')
+    pagination_result = paginate(items=topics, current_page=current_page, page_size=10)
+    buttons = {}
+
+    for topic in pagination_result.items:
+        buttons[topic.topic] = {
+            'callback_data': partial(show_one_topic, topic.topic_id, current_page)
+        }
+
+    if not pagination_result.is_first_page:
+        buttons['Назад'] = {'callback_data': partial(show_topic_list, current_page - 1)}
+
+    if not pagination_result.is_last_page:
+        buttons['Вперёд'] = {
+            'callback_data': partial(show_topic_list, current_page + 1)
+        }
+
+    buttons['Добавить тему'] = {'callback_data': partial(create_topic, current_page)}
+    buttons['В меню'] = {'callback_data': partial(show_menu)}
+
+    telegram_bot.edit_message_text(
+        text='Выберите тему:',
+        chat_id=chat_id,
+        message_id=message_id,
+        reply_markup=build_quick_markup(buttons, row_width=1),
+    )
+
+
+@callbacks.register
+def create_topic(current_page: int, chat_id: int, message_id: int) -> None:
+    def process_topic_name(message: Message) -> list[BotServiceMessage]:
+        topic_id = topic_storage.add_topic(message.text)
+        new_message = telegram_bot.send_message(chat_id, '...')
+        show_one_topic(
+            current_page=current_page,
+            topic_id=topic_id,
+            chat_id=chat_id,
+            message_id=new_message.id,
+        )
+
+    telegram_bot.edit_message_text(
+        text='Введите название темы:', chat_id=chat_id, message_id=message_id
+    )
+    telegram_bot.register_next_step_handler_by_chat_id(chat_id, process_topic_name)
+
+
+@callbacks.register
+def show_one_topic(
+    current_page: int, topic_id: int, chat_id: int, message_id: int
+) -> None:
+    if topic := topic_storage.get_topic_by_id(topic_id):
+        text = topic.topic
+    else:
+        text = 'Тема не найдена.'
+
+    telegram_bot.edit_message_text(
+        text=text,
+        chat_id=chat_id,
+        message_id=message_id,
+        reply_markup=build_quick_markup(
+            {
+                # 'Удалить': {'callback_data': partial(delete_topic)},
+                'Назад': {'callback_data': partial(show_menu)},
+            }
+        ),
+    )
+
+
+@callbacks.register
 def create_student(current_page: int, call: CallbackQuery) -> None:
     def process_student_name_input(message: Message) -> list[BotServiceMessage]:
         student_name = ' '.join(
@@ -293,9 +364,12 @@ def show_one_student(
     )
 
 
-def format_report_text(
-    report: Report | ReportData, student: Student, topic: Topic
-) -> str:
+def format_report_text(report: Report | ReportData) -> str:
+    if not (student := student_storage.get_student_by_id(report.student_id)):
+        return 'Студент не найден.'
+    if not (topic := topic_storage.get_topic_by_id(report.topic_id)):
+        return 'Тема не найдена.'
+
     text = '\n'.join(
         (
             f'ФИО: {student.name}',
@@ -315,13 +389,7 @@ def format_report_text(
 @callbacks.register
 def show_one_report(item_id: int, current_page: int, call: CallbackQuery) -> None:
     if report := report_storage.get_report_by_id(item_id):
-        if student := student_storage.get_student_by_id(report.student_id):
-            if topic := topic_storage.get_topic_by_id(report.topic_id):
-                text = format_report_text(report=report, student=student, topic=topic)
-            else:
-                text = 'Тема не найдена.'
-        else:
-            text = 'Студент не найден.'
+        text = format_report_text(report)
     else:
         text = 'Отчёт не найден.'
 
@@ -329,13 +397,9 @@ def show_one_report(item_id: int, current_page: int, call: CallbackQuery) -> Non
         text=text,
         chat_id=call.from_user.id,
         message_id=call.message.id,
-        reply_markup=None,
-    )
-    show_report_list(
-        current_page=current_page,
-        student_id=None,
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        reply_markup=build_quick_markup(
+            {'Назад': {'callback_data': partial(show_report_list, current_page)}}
+        ),
     )
 
 
@@ -404,7 +468,9 @@ def set_temp_report_lesson_day_manually(chat_id: int, message_id: int) -> None:
         text="Введите дату в формате ('ДД-ММ-ГГГГ'):",
         chat_id=chat_id,
         message_id=message_id,
-        reply_markup={'В меню': {'callback_data': partial(show_menu)}},
+        reply_markup=build_quick_markup(
+            {'В меню': {'callback_data': partial(show_menu)}}
+        ),
     )
     telegram_bot.register_next_step_handler_by_chat_id(chat_id, process_lesson_date)
 
@@ -441,8 +507,11 @@ def show_temp_report_topic_select(chat_id: int, message_id: int, current_page: i
 
 
 @callbacks.register
-def set_temp_report_topic(topic_id: int) -> None:
+def set_temp_report_topic(topic_id: int, chat_id: int, message_id: int) -> None:
     report_builder.set_topic_id_(topic_id)
+    show_temp_report_student_select(
+        chat_id=chat_id, message_id=message_id, current_page=1
+    )
 
 
 @callbacks.register
@@ -471,7 +540,7 @@ def show_temp_report_student_select(chat_id: int, message_id: int, current_page:
     buttons['В меню'] = {'callback_data': partial(show_menu)}
 
     telegram_bot.edit_message_text(
-        text='Выберите тему:',
+        text='Выберите студента:',
         chat_id=chat_id,
         message_id=message_id,
         reply_markup=build_quick_markup(buttons),
@@ -491,19 +560,13 @@ def set_temp_report_student(student_id: int, chat_id: int, message_id: int) -> N
         reply_markup=build_quick_markup(
             {
                 'Выполнено': {
-                    'callback_data': partial(
-                        set_temp_report_homework_status, student_id, 0
-                    )
+                    'callback_data': partial(set_temp_report_homework_status, 0)
                 },
                 'Выполнено частично': {
-                    'callback_data': partial(
-                        set_temp_report_homework_status, student_id, 1
-                    )
+                    'callback_data': partial(set_temp_report_homework_status, 1)
                 },
                 'Не выполнено': {
-                    'callback_data': partial(
-                        set_temp_report_homework_status, student_id, 2
-                    )
+                    'callback_data': partial(set_temp_report_homework_status, 2)
                 },
                 'В меню': {'callback_data': partial(show_menu)},
             }
@@ -545,11 +608,9 @@ def set_temp_report_is_proactive(
         message_id=message_id,
         reply_markup=build_quick_markup(
             {
-                'Оплачено': {
-                    'callback_data': partial(set_temp_report_is_proactive, True)
-                },
+                'Оплачено': {'callback_data': partial(set_temp_report_is_paid, True)},
                 'Не оплачено': {
-                    'callback_data': partial(set_temp_report_is_proactive, False)
+                    'callback_data': partial(set_temp_report_is_paid, False)
                 },
                 'В меню': {'callback_data': partial(show_menu)},
             }
@@ -579,12 +640,15 @@ def set_temp_report_comment(chat_id: int, message_id: int) -> None:
     def process_report_comment(message: Message) -> None:
         report_builder.set_comment_8(message.text)
         telegram_bot.send_message(chat_id, '...')
+        preview_temp_report(chat_id=chat_id, message_id=message_id)
 
     telegram_bot.edit_message_text(
         text='Введите комментарий:',
         chat_id=chat_id,
         message_id=message_id,
-        reply_markup={'В меню': {'callback_data': partial(show_menu)}},
+        reply_markup=build_quick_markup(
+            {'В меню': {'callback_data': partial(show_menu)}}
+        ),
     )
     telegram_bot.register_next_step_handler_by_chat_id(chat_id, process_report_comment)
 
@@ -631,7 +695,7 @@ def save_temp_report(chat_id: int) -> None:
         )
     )
     telegram_bot.send_message(
-        f'Главное меню:', chat_id, reply_markup=build_menu_buttons()
+        chat_id, f'Главное меню:', reply_markup=build_menu_buttons()
     )
 
 
