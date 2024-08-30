@@ -1,6 +1,7 @@
 .DS_Store
 .env
 .venv
+.vscode
 *.egg-info
 *.pyc
 database.db
