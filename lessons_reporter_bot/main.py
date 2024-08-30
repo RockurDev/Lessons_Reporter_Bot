@@ -89,9 +89,7 @@ def build_quick_markup(
     buttons: dict[str, partial], row_width: int = 2
 ) -> InlineKeyboardMarkup:
     return quick_markup(
-        values={
-            name: _convert_button_dict(value) for (name, value) in buttons.values()
-        },
+        values={name: _convert_button_dict(value) for (name, value) in buttons.items()},
         row_width=row_width,
     )
 
@@ -122,9 +120,9 @@ def build_menu_buttons() -> InlineKeyboardMarkup:
     return build_quick_markup(
         {
             'Студенты': {'callback_data': partial(show_student_list, 1)},
-            'Темы уроков': {'callback_data': ''},
-            'Отчёты': {'callback_data': ''},
-            'Составить отчёт': {'callback_data': ''},
+            # 'Темы уроков': {'callback_data': ''},
+            # 'Отчёты': {'callback_data': ''},
+            # 'Составить отчёт': {'callback_data': ''},
         }
     )
 
@@ -199,7 +197,7 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
         }
 
     # buttons['Добавить студента'] = {'callback_data': partial(create_student, current_page)}
-    buttons['В меню'] = {'callback_data': partial(show_menu, current_page)}
+    buttons['В меню'] = {'callback_data': partial(show_menu)}
     telegram_bot.edit_message_text(
         text='Выберите студента:',
         chat_id=call.from_user.id,
@@ -211,4 +209,4 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
 if __name__ == '__main__':
     SQLModel.metadata.create_all(engine)
     print('Started bot')
-    telegram_bot.polling(non_stop=True, interval=0.5)
+    telegram_bot.polling(non_stop=True, interval=0.5, restart_on_change=True)
