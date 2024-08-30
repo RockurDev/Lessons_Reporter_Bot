@@ -94,28 +94,6 @@ def build_quick_markup(
         row_width=row_width,
     )
 
-    # return BotServiceMessage(
-    #     text='Главное меню:',
-    #     buttons=[
-    #         BotServiceMessageButton(
-    #             title='Студенты',
-    #             callback_data=ShowItemsListCallbackData(i_t='S', i_f=None, page=1),
-    #         ),
-    #         BotServiceMessageButton(
-    #             title='Темы уроков',
-    #             callback_data=ShowItemsListCallbackData(i_t='T', i_f=None, page=1),
-    #         ),
-    #         BotServiceMessageButton(
-    #             title='Отчёты',
-    #             callback_data=ShowItemsListCallbackData(i_t='R', i_f=None, page=1),
-    #         ),
-    #         BotServiceMessageButton(
-    #             title='Составить отчёт',
-    #             callback_data=ReportBuilder1CallbackData(),
-    #         ),
-    #     ],
-    # )
-
 
 def build_menu_buttons() -> InlineKeyboardMarkup:
     return build_quick_markup(
@@ -159,6 +137,52 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
 
     print(callback_partial)
     callback_partial()
+
+
+@callbacks.register
+def show_menu(call: CallbackQuery) -> BotServiceMessage:
+    telegram_bot.edit_message_text(
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+        text=f'Главное меню:',
+        reply_markup=build_menu_buttons(),
+    )
+
+
+@callbacks.register
+def show_student_list(current_page: int, call: CallbackQuery) -> None:
+    students = student_storage.list_students(order_by='name')
+    pagination_result = paginate(
+        items=students, current_page=current_page, page_size=10
+    )
+    buttons = {}
+
+    for student in pagination_result.items:
+        buttons[student.name] = {
+            'callback_data': partial(show_one_student, student.student_id, current_page)
+        }
+
+    if not pagination_result.is_first_page:
+        buttons['Назад'] = {
+            'callback_data': partial(show_student_list, current_page - 1)
+        }
+
+    if not pagination_result.is_last_page:
+        buttons['Вперёд'] = {
+            'callback_data': partial(show_student_list, current_page + 1)
+        }
+
+    buttons['Добавить студента'] = {
+        'callback_data': partial(create_student, current_page)
+    }
+    buttons['В меню'] = {'callback_data': partial(show_menu)}
+
+    telegram_bot.edit_message_text(
+        text='Выберите студента:',
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+        reply_markup=build_quick_markup(buttons),
+    )
 
 
 @callbacks.register
@@ -207,51 +231,6 @@ def show_one_student(item_id: int, current_page: int, call: CallbackQuery) -> No
                 'Назад': {'callback_data': partial(show_student_list, current_page)},
             }
         ),
-    )
-
-
-@callbacks.register
-def show_menu(call: CallbackQuery) -> BotServiceMessage:
-    telegram_bot.edit_message_text(
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
-        text=f'Главное меню:',
-        reply_markup=build_menu_buttons(),
-    )
-
-
-@callbacks.register
-def show_student_list(current_page: int, call: CallbackQuery) -> None:
-    students = student_storage.list_students(order_by='name')
-    pagination_result = paginate(
-        items=students, current_page=current_page, page_size=10
-    )
-    buttons = {}
-
-    for student in pagination_result.items:
-        buttons[student.name] = {
-            'callback_data': partial(show_one_student, student.student_id, current_page)
-        }
-
-    if not pagination_result.is_first_page:
-        buttons['Назад'] = {
-            'callback_data': partial(show_student_list, current_page - 1)
-        }
-
-    if not pagination_result.is_last_page:
-        buttons['Вперёд'] = {
-            'callback_data': partial(show_student_list, current_page + 1)
-        }
-
-    buttons['Добавить студента'] = {
-        'callback_data': partial(create_student, current_page)
-    }
-    buttons['В меню'] = {'callback_data': partial(show_menu)}
-    telegram_bot.edit_message_text(
-        text='Выберите студента:',
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
-        reply_markup=build_quick_markup(buttons),
     )
 
 
