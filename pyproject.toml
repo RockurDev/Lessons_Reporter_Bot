@@ -32,6 +32,5 @@ select = ["I"]
 
 
 [tool.mypy]
-plugins = ["pydantic.mypy", "mypy_sqlalchemy"]
+plugins = ["pydantic.mypy"]
 import_untyped = false
-
