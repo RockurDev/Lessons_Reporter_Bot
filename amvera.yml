@@ -7,6 +7,6 @@ meta:
 build:
   requirementsPath: requirements.txt
 run:
-  scriptName: main.py
   persistenceMount: /data
   containerPort: 80
+  command: lessons_reporter_bot/main.py
