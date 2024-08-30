@@ -772,7 +772,6 @@ class BotService:
                 comment=complete_report.comment,
             )
         )
-        return complete_report
 
     def send_report(self, complete_report: ReportData) -> BotServiceMessage:
         text = self.format_report_text(complete_report)
