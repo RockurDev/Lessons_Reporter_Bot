@@ -1,4 +1,0 @@
-pyTelegramBotAPI==4.21.0
-pydantic==2.8.2
-pydantic-settings
-sqlmodel
