@@ -13,7 +13,7 @@ from telebot.types import CallbackQuery, InlineKeyboardMarkup, Message
 from telebot.util import quick_markup
 
 from lessons_reporter_bot.authorization_service import AuthorizationService
-from lessons_reporter_bot.bot_service import BotService
+from lessons_reporter_bot.bot_service import FORMATTED_HOMEWORK_STATUS_MAP, BotService
 from lessons_reporter_bot.callback_data import (
     # Topic's callback's
     AddParentIdToStudentCallbackData,
@@ -48,6 +48,10 @@ from lessons_reporter_bot.models import (
     BotServiceRegisterNextMessageHandler,
     FormattedPaginationItem,
     HomeworkStatus,
+    Report,
+    ReportData,
+    Student,
+    Topic,
 )
 from lessons_reporter_bot.report_builder import ReportBuilder
 from lessons_reporter_bot.report_storage import ReportStorage
@@ -100,7 +104,7 @@ def build_menu_buttons() -> InlineKeyboardMarkup:
         {
             'Студенты': {'callback_data': partial(show_student_list, 1)},
             # 'Темы уроков': {'callback_data': ''},
-            # 'Отчёты': {'callback_data': ''},
+            'Отчёты': {'callback_data': partial(show_report_list, 1, 0)},
             # 'Составить отчёт': {'callback_data': ''},
         }
     )
@@ -186,13 +190,67 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
 
 
 @callbacks.register
+def show_report_list(
+    current_page: int, student_id: int | None, chat_id: int, message_id: int
+) -> None:
+    if student_id:
+        reports = report_storage.list_reports_by_student_id(
+            student_id=student_id, order_by='lesson_date', descending=True
+        )
+    else:
+        reports = report_storage.list_reports(order_by='lesson_date', descending=True)
+
+    pagination_result = paginate(items=reports, current_page=current_page, page_size=10)
+    buttons = {}
+
+    for report in pagination_result.items:
+        if not (student := student_storage.get_student_by_id(report.student_id)):
+            continue
+        buttons[f'{report.lesson_date.strftime('%d-%m-%Y')} — {student.name}'] = {
+            'callback_data': partial(show_one_report, report.report_id, current_page)
+        }
+
+    if not pagination_result.is_first_page:
+        buttons['Назад'] = {
+            'callback_data': partial(show_report_list, current_page - 1)
+        }
+
+    if not pagination_result.is_last_page:
+        buttons['Вперёд'] = {
+            'callback_data': partial(show_report_list, current_page + 1)
+        }
+
+    if student_id:
+        buttons['Отправить сохранённые отчёты'] = {
+            'callback_data': partial(send_saved_reports)
+        }
+    else:
+        buttons['К студентам'] = {'callback_data': partial(show_student_list, 1)}
+
+    buttons['В меню'] = {'callback_data': partial(show_menu)}
+
+    telegram_bot.edit_message_text(
+        text='Выберите отчёт:',
+        chat_id=chat_id,
+        message_id=message_id,
+        reply_markup=build_quick_markup(buttons, row_width=1),
+    )
+
+
+@callbacks.register
 def create_student(current_page: int, call: CallbackQuery) -> None:
     def process_student_name_input(message: Message) -> list[BotServiceMessage]:
         student_name = ' '.join(
             map(lambda word: word.capitalize(), message.text.strip().split())
         )
         student_id = student_storage.add_student(student_name)
-        show_one_student(item_id=student_id, current_page=current_page)
+        new_message = telegram_bot.send_message(call.from_user.id, '...')
+        show_one_student(
+            item_id=student_id,
+            current_page=current_page,
+            chat_id=new_message.chat.id,
+            message_id=new_message.id,
+        )
 
     telegram_bot.edit_message_text(
         text='Введите ФИО студента:',
@@ -206,7 +264,9 @@ def create_student(current_page: int, call: CallbackQuery) -> None:
 
 
 @callbacks.register
-def show_one_student(item_id: int, current_page: int, call: CallbackQuery) -> None:
+def show_one_student(
+    item_id: int, current_page: int, chat_id: int, message_id: int
+) -> None:
     if student := student_storage.get_student_by_id(item_id):
         text = f'ФИО: {student.name}\nРодитель id: {student.parent_id if student.parent_id else 'отсутсвует'}'
     else:
@@ -214,8 +274,8 @@ def show_one_student(item_id: int, current_page: int, call: CallbackQuery) -> No
 
     telegram_bot.edit_message_text(
         text=text,
-        chat_id=call.from_user.id,
-        message_id=call.message.id,
+        chat_id=chat_id,
+        message_id=message_id,
         reply_markup=build_quick_markup(
             {
                 # 'Отчёты': {'callback_data': partial(show_report_list, item_id)},
@@ -234,7 +294,53 @@ def show_one_student(item_id: int, current_page: int, call: CallbackQuery) -> No
     )
 
 
+def format_report_text(
+    report: Report | ReportData, student: Student, topic: Topic
+) -> str:
+    text = '\n'.join(
+        (
+            f'ФИО: {student.name}',
+            f'Занятие № {report.lesson_count} от {report.lesson_date.strftime('%d-%m-%Y')}',
+            f'Тема: {topic.topic}',
+            f'Д/З: {FORMATTED_HOMEWORK_STATUS_MAP[report.homework_status]}',
+            f'Активность на занятии {"высокая" if report.is_proactive else "слабая"}',
+            f'Занятие {"оплачено" if report.is_paid else "не оплачено"}',
+        )
+    )
+    if report.comment is not None:
+        text += f'\nКомментарий:\n{report.comment}'
+
+    return text
+
+
+@callbacks.register
+def show_one_report(item_id: int, current_page: int, call: CallbackQuery) -> None:
+    if report := report_storage.get_report_by_id(item_id):
+        if student := student_storage.get_student_by_id(report.student_id):
+            if topic := topic_storage.get_topic_by_id(report.topic_id):
+                text = format_report_text(report=report, student=student, topic=topic)
+            else:
+                text = 'Тема не найдена.'
+        else:
+            text = 'Студент не найден.'
+    else:
+        text = 'Отчёт не найден.'
+
+    telegram_bot.edit_message_text(
+        text=text,
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+        reply_markup=None,
+    )
+    show_report_list(
+        current_page=current_page,
+        student_id=None,
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+    )
+
+
 if __name__ == '__main__':
     SQLModel.metadata.create_all(engine)
     print('Started bot')
-    telegram_bot.polling(non_stop=True, interval=0.5, restart_on_change=True)
+    telegram_bot.polling(non_stop=True, interval=0.5)
