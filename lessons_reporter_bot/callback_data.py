@@ -9,6 +9,7 @@ Repor builder - rb
 i - item
 i_t - item type
 i_f - item filter
+s_i - show one item
 S - student
 R - report
 T - topic
@@ -111,7 +112,7 @@ class ShowItemsListCallbackData(pydantic.BaseModel):
 
 
 class ShowOneItemCallbackData(pydantic.BaseModel):
-    type: Literal['show_item'] = 'show_item'
+    type: Literal['s_i'] = 's_i'
     i_t: Literal['S', 'R', 'T']
     i_f: Optional[int]
     page: int

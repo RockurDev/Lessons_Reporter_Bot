@@ -1,3 +1,6 @@
+from collections import defaultdict
+from contextlib import suppress
+
 import telebot
 from pydantic import ValidationError
 from sqlmodel import SQLModel, create_engine
@@ -65,27 +68,29 @@ bot_service = BotService(
 )
 telegram_bot = telebot.TeleBot(token=settings.bot_token)
 
-last_message_id: dict[int, int] = {}
+LAST_MESSAGE_IDS: dict[int, list[int]] = defaultdict(list)
 
 
 def process_bot_service_handler_results(
     *results: BotServiceMessage | BotServiceRegisterNextMessageHandler, chat_id: int
 ) -> Message:
-    global last_message_id
-
-    if chat_id in last_message_id and authorization_service.has_teacher_access(
-        user_id=chat_id
-    ):
-        try:
-            telegram_bot.delete_message(chat_id, last_message_id[chat_id])
-
-        # Ignore if the message is already deleted or not found
-        except ApiTelegramException:
-            pass
-
     for result in results:
         match result:
             case BotServiceMessage() as message:
+                telegram_bot.clear_step_handler_by_chat_id(chat_id)
+
+                if authorization_service.has_teacher_access(user_id=chat_id):
+                    for message_id in LAST_MESSAGE_IDS[chat_id]:
+                        # Ignore if the message is already deleted or not found
+                        with suppress(ApiTelegramException):
+                            telegram_bot.delete_message(chat_id, message_id)
+
+                for button in message.buttons:
+                    print(
+                        len(button.callback_data.model_dump_json().encode()),
+                        'bytes',
+                        button.callback_data,
+                    )
                 buttons = {
                     button.title: {
                         'callback_data': button.callback_data.model_dump_json()
@@ -104,7 +109,7 @@ def process_bot_service_handler_results(
                     parse_mode='MARKDOWN',
                 )
                 if authorization_service.has_teacher_access(user_id=chat_id):
-                    last_message_id[chat_id] = sent_message.message_id
+                    LAST_MESSAGE_IDS[chat_id].append(sent_message.message_id)
             case BotServiceRegisterNextMessageHandler():
 
                 def callback(message: Message) -> None:

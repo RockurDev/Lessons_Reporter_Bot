@@ -490,7 +490,13 @@ class BotService:
             except ValueError:
                 return [
                     BotServiceMessage(
-                        text="Введите дату в корректном формате ('ДД-ММ-ГГГГ'):"
+                        text="Введите дату в корректном формате ('ДД-ММ-ГГГГ'):",
+                        buttons=[
+                            BotServiceMessageButton(
+                                title='В меню',
+                                callback_data=GoBackToAdminPanelCallbackData(),
+                            )
+                        ],
                     ),
                     BotServiceRegisterNextMessageHandler(process_lesson_date),
                 ]
