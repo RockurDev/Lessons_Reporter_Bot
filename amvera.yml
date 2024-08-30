@@ -8,4 +8,4 @@ build:
 run:
   persistenceMount: /data
   containerPort: 80
-  command: lessons_reporter_bot/main.py
+  command: python lessons_reporter_bot/main.py
