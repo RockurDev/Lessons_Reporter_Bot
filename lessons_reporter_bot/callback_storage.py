@@ -1,9 +1,11 @@
 import json
+from ast import TypeVar
 from dataclasses import dataclass, field
 from functools import partial
 from typing import Callable
 
 Callback = Callable[..., None]
+CallbackType = TypeVar('CallbackType', bound=Callback)
 
 
 @dataclass
@@ -11,7 +13,7 @@ class CallbackStorage:
     callbacks_version: str
     callbacks: list[Callback] = field(default_factory=list)
 
-    def register(self, callback: Callback) -> Callback:
+    def register(self, callback: CallbackType) -> CallbackType:
         assert callback not in self.callbacks
         self.callbacks.append(callback)
         return callback

@@ -1,6 +1,7 @@
 import inspect
 from collections import defaultdict
 from contextlib import suppress
+from email import message
 from functools import partial
 from typing import Any, Literal
 
@@ -156,11 +157,57 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
     if 'message_id' in args:
         callback_partial.keywords['message_id'] = call.message.id
 
+    print(callback_partial)
     callback_partial()
 
 
 @callbacks.register
-def show_one_student(item_id: int, current_page: int) -> None: ...
+def create_student(current_page: int, call: CallbackQuery) -> None:
+    def process_student_name_input(message: Message) -> list[BotServiceMessage]:
+        student_name = ' '.join(
+            map(lambda word: word.capitalize(), message.text.strip().split())
+        )
+        student_id = student_storage.add_student(student_name)
+        show_one_student(item_id=student_id, current_page=current_page)
+
+    telegram_bot.edit_message_text(
+        text='Введите ФИО студента:',
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+        reply_markup=None,
+    )
+    telegram_bot.register_next_step_handler_by_chat_id(
+        call.from_user.id, process_student_name_input
+    )
+
+
+@callbacks.register
+def show_one_student(item_id: int, current_page: int, call: CallbackQuery) -> None:
+    if student := student_storage.get_student_by_id(item_id):
+        text = f'ФИО: {student.name}\nРодитель id: {student.parent_id if student.parent_id else 'отсутсвует'}'
+    else:
+        text = 'Студент не найден'
+
+    telegram_bot.edit_message_text(
+        text=text,
+        chat_id=call.from_user.id,
+        message_id=call.message.id,
+        reply_markup=build_quick_markup(
+            {
+                # 'Отчёты': {'callback_data': partial(show_report_list, item_id)},
+                # 'Удалить': {
+                #     'callback_data': partial(delete_student, item_id, current_page)
+                # },
+                # 'Изменить ФИО': {
+                #     'callback_data': partial(update_student_name, item_id, current_page)
+                # },
+                # 'Изменить id родителя': {
+                #     'callback_data': partial(update_parent_id, item_id, current_page)
+                # },
+                'Назад': {'callback_data': partial(show_student_list, current_page)},
+            }
+        ),
+    )
 
 
 @callbacks.register
@@ -183,7 +230,7 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
 
     for student in pagination_result.items:
         buttons[student.name] = {
-            'callback_data': partial(show_one_student, student.id, current_page)
+            'callback_data': partial(show_one_student, student.student_id, current_page)
         }
 
     if not pagination_result.is_first_page:
@@ -196,7 +243,9 @@ def show_student_list(current_page: int, call: CallbackQuery) -> None:
             'callback_data': partial(show_student_list, current_page + 1)
         }
 
-    # buttons['Добавить студента'] = {'callback_data': partial(create_student, current_page)}
+    buttons['Добавить студента'] = {
+        'callback_data': partial(create_student, current_page)
+    }
     buttons['В меню'] = {'callback_data': partial(show_menu)}
     telegram_bot.edit_message_text(
         text='Выберите студента:',
