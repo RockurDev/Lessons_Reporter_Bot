@@ -412,7 +412,17 @@ class BotService:
             ]
 
         return [
-            BotServiceMessage(text='Введите id родителя:'),
+            BotServiceMessage(
+                text='Введите id родителя:',
+                buttons=[
+                    BotServiceMessageButton(
+                        title='Назад',
+                        callback_data=ShowOneItemCallbackData(
+                            i_t='S', page=data.page, i_f=None, i_id=data.student_id
+                        ),
+                    )
+                ],
+            ),
             BotServiceRegisterNextMessageHandler(process_student_parent_id_input),
         ]
 
@@ -435,7 +445,17 @@ class BotService:
             ]
 
         return [
-            BotServiceMessage(text='Введите имя и фамилию:'),
+            BotServiceMessage(
+                text='Введите имя и фамилию:',
+                buttons=[
+                    BotServiceMessageButton(
+                        title='Назад',
+                        callback_data=ShowOneItemCallbackData(
+                            i_t='S', page=data.page, i_f=None, i_id=data.student_id
+                        ),
+                    )
+                ],
+            ),
             BotServiceRegisterNextMessageHandler(process_student_name_input),
         ]
 
