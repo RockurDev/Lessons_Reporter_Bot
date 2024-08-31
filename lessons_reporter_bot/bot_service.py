@@ -378,7 +378,17 @@ class BotService:
             ]
 
         return [
-            BotServiceMessage(text='Введите ФИО студента:'),
+            BotServiceMessage(
+                text='Введите ФИО студента:',
+                buttons=[
+                    BotServiceMessageButton(
+                        title='Назад',
+                        callback_data=ShowItemsListCallbackData(
+                            i_t='S', i_f=None, page=data.page
+                        ),
+                    ),
+                ],
+            ),
             BotServiceRegisterNextMessageHandler(process_student_name_input),
         ]
 
