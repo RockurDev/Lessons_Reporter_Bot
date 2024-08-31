@@ -255,9 +255,9 @@ class BotService:
                 )
                 extra_buttons = [
                     BotServiceMessageButton(
-                        title='К студентам',
-                        callback_data=ShowItemsListCallbackData(
-                            i_t='S', i_f=data.i_f, page=data.page
+                        title='Назад',
+                        callback_data=ShowOneItemCallbackData(
+                            i_t='S', i_f=data.i_f, page=data.page, i_id=data.i_f
                         ),
                     )
                 ]
