@@ -3,7 +3,7 @@ from datetime import date
 
 import pydantic
 
-from lessons_reporter_bot.models import HomeworkStatus, ReportData
+from lessons_reporter_bot.models import ReportData
 
 
 class TempReport(pydantic.BaseModel):
@@ -36,7 +36,7 @@ class ReportBuilder:
     def set_student_id_3(self, student_id: int) -> None:
         self.temp_report.student_id = student_id
 
-    def set_homework_status_5(self, homework_status: HomeworkStatus) -> None:
+    def set_homework_status_5(self, homework_status: int) -> None:
         self.temp_report.homework_status = homework_status
 
     def set_is_proactive_6(self, is_proactive: bool) -> None:

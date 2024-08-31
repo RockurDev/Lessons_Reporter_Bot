@@ -643,7 +643,7 @@ class BotService:
                 BotServiceMessageButton(
                     title='Выполнено',
                     callback_data=ReportBuilder5SetHomeworkStatusCallbackData(
-                        homework_status=0
+                        homework_status=2
                     ),
                 ),
                 BotServiceMessageButton(
@@ -655,7 +655,7 @@ class BotService:
                 BotServiceMessageButton(
                     title='Не выполнено',
                     callback_data=ReportBuilder5SetHomeworkStatusCallbackData(
-                        homework_status=2
+                        homework_status=1
                     ),
                 ),
                 BotServiceMessageButton(

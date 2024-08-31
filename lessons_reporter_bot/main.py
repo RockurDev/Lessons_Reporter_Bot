@@ -41,7 +41,6 @@ from lessons_reporter_bot.callback_data import (
 from lessons_reporter_bot.models import (
     BotServiceMessage,
     BotServiceRegisterNextMessageHandler,
-    HomeworkStatus,
 )
 from lessons_reporter_bot.report_builder import ReportBuilder
 from lessons_reporter_bot.report_storage import ReportStorage
@@ -219,7 +218,7 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
                 )
 
         case ReportBuilder5SetHomeworkStatusCallbackData():
-            report_builder.set_homework_status_5(HomeworkStatus(data.homework_status))
+            report_builder.set_homework_status_5(data.homework_status)
             process_bot_service_handler_results(
                 bot_service.build_report_6_is_proactive_setting(),
                 chat_id=user_id,

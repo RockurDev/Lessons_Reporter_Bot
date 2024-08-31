@@ -68,12 +68,6 @@ class BotServiceMessageButton(pydantic.BaseModel):
     callback_data: AnyCallbackData
 
 
-class HomeworkStatus(enum.Enum):
-    fully_complete = 2
-    partially_complete = 1
-    incomplete = 0
-
-
 class ReportData(pydantic.BaseModel):
     lesson_date: date
     lesson_count: int
