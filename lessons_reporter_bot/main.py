@@ -74,6 +74,8 @@ LAST_MESSAGE_IDS: dict[int, list[int]] = defaultdict(list)
 def process_bot_service_handler_results(
     *results: BotServiceMessage | BotServiceRegisterNextMessageHandler, chat_id: int
 ) -> Message:
+    sent_message = None
+
     for result in results:
         match result:
             case BotServiceMessage() as message:
@@ -85,12 +87,6 @@ def process_bot_service_handler_results(
                         with suppress(ApiTelegramException):
                             telegram_bot.delete_message(chat_id, message_id)
 
-                for button in message.buttons:
-                    print(
-                        len(button.callback_data.model_dump_json().encode()),
-                        'bytes',
-                        button.callback_data,
-                    )
                 buttons = {
                     button.title: {
                         'callback_data': button.callback_data.model_dump_json()
@@ -102,16 +98,18 @@ def process_bot_service_handler_results(
                     if message.buttons
                     else None
                 )
+
                 sent_message = telegram_bot.send_message(
                     chat_id,
                     message.text,
                     reply_markup=reply_markup,
                     parse_mode='MARKDOWN',
                 )
+
                 if authorization_service.has_teacher_access(user_id=chat_id):
                     LAST_MESSAGE_IDS[chat_id].append(sent_message.message_id)
-            case BotServiceRegisterNextMessageHandler():
 
+            case BotServiceRegisterNextMessageHandler():
                 def callback(message: Message) -> None:
                     process_bot_service_handler_results(
                         *result.callback(message.text), chat_id=chat_id
@@ -120,6 +118,8 @@ def process_bot_service_handler_results(
                 telegram_bot.register_next_step_handler_by_chat_id(
                     chat_id=chat_id, callback=callback
                 )
+
+    return sent_message
 
 
 @telegram_bot.message_handler(['start', 'help'])
@@ -253,12 +253,33 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
 
         case SaveConfirmedReportCallbackData():
             try:
-                complete_report = bot_service.save_report()
+                report_id, complete_report = bot_service.save_report()
+
                 if data.parent_id:
-                    process_bot_service_handler_results(
-                        bot_service.send_report(complete_report),
+                    sent_message = process_bot_service_handler_results(
+                        bot_service.build_report_message(complete_report),
                         chat_id=data.parent_id,
                     )
+
+                    if sent_message:
+                        process_bot_service_handler_results(
+                            bot_service.get_message_report_successfully_sent(),
+                            chat_id=user_id,
+                        )
+                        report_storage.set_is_sent(report_id)
+                    else:
+                        process_bot_service_handler_results(
+                            bot_service.get_message_report_unsuccessfully_sent(),
+                            chat_id=user_id,
+                        )
+
+            except ApiTelegramException as e:
+                if e.error_code == 400 and 'chat not found' in e.description.lower():
+                    process_bot_service_handler_results(
+                        bot_service.get_message_report_unsuccessfully_sent(),
+                        chat_id=user_id,
+                    )
+
             except ValidationError:
                 process_bot_service_handler_results(
                     bot_service.get_error_message_temp_report_must_be_filled()
@@ -270,9 +291,9 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
             )
 
         case SendSavedReportsCallbackData():
-            for message, report_id, parent_id in bot_service.send_saved_reports():
+            for sent_message, report_id, parent_id in bot_service.send_saved_reports():
                 try:
-                    process_bot_service_handler_results(message, chat_id=parent_id)
+                    process_bot_service_handler_results(sent_message, chat_id=parent_id)
                     report_storage.set_is_sent(report_id)
                 except ApiTelegramException as e:
                     if (

@@ -19,6 +19,8 @@ class ReportStorage:
         with Session(self.engine) as session:
             session.add(report)
             session.commit()
+            session.refresh(report)
+            return report.report_id
 
     def list_reports(
         self, order_by: str | None = None, descending: bool = False

@@ -131,8 +131,6 @@ class BotService:
     def delete_confirmed_one_item(
         self, data: DeleteConfirmedItemCallbackData
     ) -> BotServiceMessage:
-        print('def delete_confirmed_one_item -> data:', data)
-
         if data.i_t == 'S':
             if self.student_storage.delete_student(data.i_id):
                 text = 'Студент удалён'
@@ -157,7 +155,6 @@ class BotService:
         )
 
     def show_one_item(self, data: ShowOneItemCallbackData) -> BotServiceMessage:
-        print('def show_one_item -> data:', data)
         go_back_button = BotServiceMessageButton(
             title='Назад',
             callback_data=ShowItemsListCallbackData(
@@ -729,7 +726,14 @@ class BotService:
             return [self.build_report_preview()]
 
         return [
-            BotServiceMessage(text='Введите комментарий:', buttons=[]),
+            BotServiceMessage(
+                text='Введите комментарий:',
+                buttons=[
+                    BotServiceMessageButton(
+                        title='В меню', callback_data=GoBackToAdminPanelCallbackData()
+                    ),
+                ],
+            ),
             BotServiceRegisterNextMessageHandler(callback=process_comment_input),
         ]
 
@@ -777,26 +781,35 @@ class BotService:
             ],
         )
 
-    def save_report(self, parent_id: int | None = None) -> BotServiceMessage:
+    def save_report(self) -> tuple[int, ReportData]:
         complete_report = self.report_builder.complete_report()
-        self.report_storage.add_report(
-            Report(
-                lesson_date=complete_report.lesson_date,
-                lesson_count=complete_report.lesson_count,
-                topic_id=complete_report.topic_id,
-                student_id=complete_report.student_id,
-                homework_status=complete_report.homework_status,
-                is_proactive=complete_report.is_proactive,
-                is_paid=complete_report.is_paid,
-                is_sent=True if parent_id else False,
-                comment=complete_report.comment,
-            )
+        instance = Report(
+            lesson_date=complete_report.lesson_date,
+            lesson_count=complete_report.lesson_count,
+            topic_id=complete_report.topic_id,
+            student_id=complete_report.student_id,
+            homework_status=complete_report.homework_status,
+            is_proactive=complete_report.is_proactive,
+            is_paid=complete_report.is_paid,
+            is_sent=False,
+            comment=complete_report.comment,
         )
-        return complete_report
 
-    def send_report(self, complete_report: ReportData) -> BotServiceMessage:
+        report_id = self.report_storage.add_report(instance)
+        return report_id, complete_report
+
+    def get_message_report_successfully_sent(self) -> BotServiceMessage:
+        return BotServiceMessage(text='Отчёт успешно отправлен ✅️', buttons=[])
+
+    def get_message_report_unsuccessfully_sent(self) -> BotServiceMessage:
+        return BotServiceMessage(
+            text='Отчёт не был отправлен ❌.\nПроверьте id родителя.',
+            buttons=[],
+        )
+
+    def build_report_message(self, complete_report: ReportData) -> BotServiceMessage:
         text = self.format_report_text(complete_report)
-        return [BotServiceMessage(text=text, buttons=[])]
+        return BotServiceMessage(text=text, buttons=[])
 
     def send_saved_reports(self) -> list[tuple[BotServiceMessage, int, int]]:
         result = []
