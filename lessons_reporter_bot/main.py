@@ -1,3 +1,4 @@
+import time
 from collections import defaultdict
 from contextlib import suppress
 
@@ -271,6 +272,9 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
                             bot_service.get_message_report_unsuccessfully_sent(),
                             chat_id=user_id,
                         )
+
+                    # # Introduce a delay to make the success message appear later
+                    time.sleep(1.5)
 
             except ApiTelegramException as e:
                 if e.error_code == 400 and 'chat not found' in e.description.lower():
