@@ -219,6 +219,7 @@ def catchall_callback_handler(call: CallbackQuery) -> None:
                 )
 
         case ReportBuilder5SetHomeworkStatusCallbackData():
+            print('data.homework_status:', data.homework_status)
             report_builder.set_homework_status_5(data.homework_status)
             process_bot_service_handler_results(
                 bot_service.build_report_6_is_proactive_setting(),
